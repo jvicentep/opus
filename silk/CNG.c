@@ -126,12 +126,13 @@ void silk_CNG(
     }
 
     /* Add CNG when packet is lost or during DTX */
-    if( psDec->lossCnt ) {
+    if ( psDec->lossCnt || psDec->inDTX ){
         VARDECL( opus_int32, CNG_sig_Q14 );
         ALLOC( CNG_sig_Q14, length + MAX_LPC_ORDER, opus_int32 );
 
         /* Generate CNG excitation */
-        gain_Q16 = silk_SMULWW( psDec->sPLC.randScale_Q14, psDec->sPLC.prevGain_Q16[1] );
+        opus_int16 randScale_Q14 = psDec->inDTX ? 0 : psDec->sPLC.randScale_Q14;
+        gain_Q16 = silk_SMULWW( randScale_Q14, psDec->sPLC.prevGain_Q16[1] );
         if( gain_Q16 >= (1 << 21) || psCNG->CNG_smth_Gain_Q16 > (1 << 23) ) {
             gain_Q16 = silk_SMULTT( gain_Q16, gain_Q16 );
             gain_Q16 = silk_SUB_LSHIFT32(silk_SMULTT( psCNG->CNG_smth_Gain_Q16, psCNG->CNG_smth_Gain_Q16 ), gain_Q16, 5 );
@@ -177,7 +178,12 @@ void silk_CNG(
             CNG_sig_Q14[ MAX_LPC_ORDER + i ] = silk_ADD_SAT32( CNG_sig_Q14[ MAX_LPC_ORDER + i ], silk_LSHIFT_SAT32( LPC_pred_Q10, 4 ) );
 
             /* Scale with Gain and add to input signal */
-            frame[ i ] = (opus_int16)silk_ADD_SAT16( frame[ i ], silk_SAT16( silk_RSHIFT_ROUND( silk_SMULWW( CNG_sig_Q14[ MAX_LPC_ORDER + i ], gain_Q10 ), 8 ) ) );
+            if ( psDec->inDTX ) {
+                /* During DTX regions, do not mix and produce just comfort noise.*/
+                frame[ i ] = (opus_int16)silk_SAT16( silk_RSHIFT_ROUND( silk_SMULWW( CNG_sig_Q14[ MAX_LPC_ORDER + i ], gain_Q10 ), 8 ) );
+            } else {
+                frame[ i ] = (opus_int16)silk_ADD_SAT16( frame[ i ], silk_SAT16( silk_RSHIFT_ROUND( silk_SMULWW( CNG_sig_Q14[ MAX_LPC_ORDER + i ], gain_Q10 ), 8 ) ) );
+            }
 
         }
         silk_memcpy( psCNG->CNG_synth_state, &CNG_sig_Q14[ length ], MAX_LPC_ORDER * sizeof( opus_int32 ) );

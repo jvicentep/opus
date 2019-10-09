@@ -156,6 +156,9 @@ static OPUS_INLINE void silk_PLC_update(
         silk_memset( psPLC->LTPCoef_Q14, 0, LTP_ORDER * sizeof( opus_int16 ));
     }
 
+    /* If a no activity packet is received, check if it was a refresh DTX packet. */
+    psDec->inDTX = (psDec->indices.signalType == TYPE_NO_VOICE_ACTIVITY) && (psDec->lossCnt >= MAX_CONSECUTIVE_DTX);
+
     /* Save LPC coeficients */
     silk_memcpy( psPLC->prevLPC_Q12, psDecCtrl->PredCoef_Q12[ 1 ], psDec->LPC_order * sizeof( opus_int16 ) );
     psPLC->prevLTP_scale_Q14 = psDecCtrl->LTP_scale_Q14;
